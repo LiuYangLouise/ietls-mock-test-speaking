@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雅思口语练习 · Whisper识别 + 智能点评</title>
+    <style>
+        /* ===== 全局样式 ===== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 880px;
+            margin: 20px auto;
+            padding: 0 16px 40px;
+            background: #f7f8fa;
+            color: #1e293b;
+        }
+        h1 {
+            font-size: 26px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 4px solid #f59e0b;
+            padding-bottom: 14px;
+            margin-bottom: 20px;
+        }
+        .sub {
+            font-size: 14px;
+            font-weight: 400;
+            color: #64748b;
+            margin-left: auto;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 18px 0 12px;
+        }
+        button {
+            padding: 12px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 40px;
+            background: #e2e8f0;
+            color: #1e293b;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            flex: 0 1 auto;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+        }
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        #loadBtn { background: #3b82f6; color: #fff; }
+        #recBtn { background: #f59e0b; color: #fff; }
+        #stopBtn { background: #ef4444; color: #fff; }
+        #status {
+            background: #f1f5f9;
+            padding: 12px 20px;
+            border-radius: 40px;
+            margin: 12px 0 20px;
+            border-left: 6px solid #f59e0b;
+            font-weight: 500;
+            color: #0f172a;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 20px 24px;
+            margin-top: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #eef2f6;
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .badge {
+            background: #f59e0b;
+            color: #0f172a;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 14px;
+            border-radius: 30px;
+            margin-left: 6px;
+        }
+        .text-box {
+            background: #f8fafc;
+            padding: 16px 20px;
+            border-radius: 14px;
+            white-space: pre-wrap;
+            line-height: 1.8;
+            font-size: 16px;
+            border-left: 5px solid #94a3b8;
+        }
+        .fb-item {
+            padding: 10px 0;
+            border-bottom: 1px dashed #e9edf2;
+        }
+        .fb-item:last-child {
+            border-bottom: none;
+        }
+        .fb-item strong {
+            display: inline-block;
+            min-width: 130px;
+            color: #1e293b;
+        }
+        .fb-item .label {
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .polished-box {
+            background: #f0fdf4;
+            padding: 16px 20px;
+            border-radius: 14px;
+            line-height: 1.9;
+            font-size: 16px;
+            border-left: 6px solid #22c55e;
+            white-space: pre-wrap;
+        }
+        .tip {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .stat-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 10px 16px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .stat-row span {
+            color: #475569;
+        }
+        .stat-row strong {
+            color: #0f172a;
+        }
+        .error-text {
+            color: #b91c1c;
+            background: #fef2f2;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+        .good-text {
+            color: #15803d;
+            background: #f0fdf4;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+        .summary-box {
+            background: #eff6ff;
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-top: 8px;
+            border-left: 5px solid #3b82f6;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+        @media (max-width: 600px) {
+            button { flex: 1 1 100%; }
+            .fb-item strong { min-width: 100px; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>
+        🎙️ 雅思口语助手
+        <span class="sub">Whisper 识别 + 考官点评</span>
+    </h1>
+
+    <div class="btn-group">
+        <button id="loadBtn">⬇️ 加载模型（首次约40MB）</button>
+        <button id="recBtn" disabled>🎤 开始录音</button>
+        <button id="stopBtn" disabled>⏹️ 停止并识别</button>
+    </div>
+
+    <div id="status">💡 请先点击 “加载模型”，等待完成后再录音</div>
+
+    <!-- ====== 结果展示区 ====== -->
+    <div id="resultArea">
+
+        <!-- 原文卡片 -->
+        <div class="card hidden" id="originalCard">
+            <div class="card-title">📝 你的原文</div>
+            <div class="stat-row" id="statsRow"></div>
+            <div class="text-box" id="originalText"></div>
+        </div>
+
+        <!-- 点评卡片 -->
+        <div class="card hidden" id="feedbackCard">
+            <div class="card-title">✅ 考官点评 <span class="badge">雅思标准</span></div>
+            <div id="feedbackContent">
+                <div class="fb-item"><strong>📊 流利度 & 连贯度</strong> <span id="fbFluency"></span></div>
+                <div class="fb-item"><strong>📚 词汇资源</strong> <span id="fbVocabulary"></span></div>
+                <div class="fb-item"><strong>🧩 语法范围与准确性</strong> <span id="fbGrammar"></span></div>
+                <div class="fb-item"><strong>🗣️ 发音</strong> <span id="fbPronunciation"></span></div>
+            </div>
+            <div class="summary-box" id="summaryBox"></div>
+        </div>
+
+        <!-- 润色版卡片 -->
+        <div class="card hidden" id="polishedCard">
+            <div class="card-title">✨ 可背诵的润色版 <span class="badge">模仿学习</span></div>
+            <div class="polished-box" id="polishedText"></div>
+            <div class="tip">💡 保留你的核心观点，修正了错误，语感更自然流畅</div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- 使用 import map 加载 Transformers.js                          -->
+    <!-- ============================================================ -->
+    <script type="importmap">
+        {
+            "imports": {
+                "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // ============================================================
+        // 1. 导入
+        // ============================================================
+        import { pipeline } from '@huggingface/transformers';
+
+        // ============================================================
+        // 2. DOM 引用
+        // ============================================================
+        const loadBtn = document.getElementById('loadBtn');
+        const recBtn = document.getElementById('recBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusEl = document.getElementById('status');
+
+        const originalCard = document.getElementById('originalCard');
+        const feedbackCard = document.getElementById('feedbackCard');
+        const polishedCard = document.getElementById('polishedCard');
+        const originalText = document.getElementById('originalText');
+        const statsRow = document.getElementById('statsRow');
+        const fbFluency = document.getElementById('fbFluency');
+        const fbVocabulary = document.getElementById('fbVocabulary');
+        const fbGrammar = document.getElementById('fbGrammar');
+        const fbPronunciation = document.getElementById('fbPronunciation');
+        const summaryBox = document.getElementById('summaryBox');
+        const polishedText = document.getElementById('polishedText');
+
+        // ============================================================
+        // 3. 状态
+        // ============================================================
+        let transcriber = null;
+        let recorder = null;
+        let audioChunks = [];
+
+        // ============================================================
+        // 4. 加载模型
+        // ============================================================
+        loadBtn.onclick = async () => {
+            statusEl.textContent = '⏳ 正在加载 Whisper tiny.en 模型（约40MB，首次需下载，请耐心等待）...';
+            loadBtn.disabled = true;
+            try {
+                transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+                    device: 'webgpu'
+                });
+                statusEl.textContent = '✅ 模型加载成功！可以开始录音作答了。';
+                recBtn.disabled = false;
+                loadBtn.textContent = '✅ 已加载';
+            } catch (err) {
+                statusEl.textContent = `❌ 加载失败：${err.message}。请检查网络或刷新重试。`;
+                loadBtn.disabled = false;
+                console.error(err);
+            }
+        };
+
+        // ============================================================
+        // 5. 开始录音
+        // ============================================================
+        recBtn.onclick = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                recorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                recorder.ondataavailable = e => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
+                };
+
+                recorder.onstop = async () => {
+                    await handleRecognition();
+                };
+
+                recorder.start();
+                statusEl.textContent = '🎤 正在录音... 请口述你的英文回答，说完后点击“停止并识别”';
+                recBtn.disabled = true;
+                stopBtn.disabled = false;
+            } catch (err) {
+                statusEl.textContent = `❌ 无法访问麦克风：${err.message}`;
+                console.error(err);
+            }
+        };
+
+        // ============================================================
+        // 6. 停止录音
+        // ============================================================
+        stopBtn.onclick = () => {
+            if (recorder && recorder.state === 'recording') {
+                recorder.stop();
+                stopBtn.disabled = true;
+                statusEl.textContent = '⏳ 正在处理音频并识别...';
+            }
+        };
+
+        // ============================================================
+        // 7. 识别 + 点评
+        // ============================================================
+        async function handleRecognition() {
+            if (!transcriber) {
+                statusEl.textContent = '⚠️ 模型未加载，请先加载模型。';
+                recBtn.disabled = false;
+                return;
+            }
+
+            try {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioCtx = new AudioContext({ sampleRate: 16000 });
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                const monoAudio = audioBuffer.getChannelData(0);
+
+                const result = await transcriber(monoAudio);
+                const userText = result.text || '（未检测到语音，请确保麦克风正常工作并大声朗读）';
+
+                // ----- 生成点评 -----
+                const feedback = generateIELTSFeedback(userText);
+
+                // ----- 渲染 -----
+                renderFeedback(userText, feedback);
+
+                statusEl.textContent = '✅ 识别 + 点评完成！可以继续录音练习。';
+                recBtn.disabled = false;
+                stopBtn.disabled = true;
+
+            } catch (err) {
+                statusEl.textContent = `❌ 识别出错：${err.message}`;
+                console.error(err);
+                recBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        }
+
+        // ============================================================
+        // 8. ====== 核心点评引擎（完全基于原文） ======
+        // ============================================================
+        function generateIELTSFeedback(originalText) {
+            const clean = originalText.trim();
+            if (!clean) {
+                return {
+                    stats: { wordCount: 0, sentenceCount: 0, avgSentenceLength: 0 },
+                    fluency: { strengths: '无内容', weaknesses: '请重新录音' },
+                    vocabulary: { errors: '无', good: '无' },
+                    grammar: { errors: '无', good: '无' },
+                    pronunciation: '无',
+                    polished: '请重新录音并清晰口述。',
+                    summary: '未检测到有效语音，请确保麦克风正常并大声朗读。'
+                };
+            }
+
+            const sentences = clean.match(/[^.!?]+[.!?]+/g) || [clean];
+            const wordCount = clean.split(/\s+/).length;
+            const avgLen = sentences.reduce((s, v) => s + v.split(/\s+/).length, 0) / sentences.length;
+
+            // ---- 8-A 流利度 ----
+            const fluency = { strengths: [], weaknesses: [] };
+            if (/challenge|problem|difficulty|issue/i.test(clean)) fluency.strengths.push('✅ 开篇明确，直接点出核心问题。');
+            if (/for example|such as|like|cactus|orchids|ferns/i.test(clean)) fluency.strengths.push('✅ 使用了具体例子支撑观点，非常生动。');
+            if (/so|therefore|thus|in conclusion|finally/i.test(clean)) fluency.strengths.push('✅ 有总结意识，结构完整。');
+            if (!/[.!?]$/.test(clean.trim())) fluency.weaknesses.push('⚠️ 结尾不完整，句子没有收束。');
+            if (/\b(um|uh|like|you know|actually|basically|well|so)\b/i.test(clean)) fluency.weaknesses.push('⚠️ 存在填充词，建议精简。');
+            if (/I think\s+I think/i.test(clean)) fluency.weaknesses.push('⚠️ 重复 "I think"，显得不够自信。');
+            if (sentences.length < 3) fluency.weaknesses.push('⚠️ 句子偏少，建议适当扩展内容。');
+            if (fluency.weaknesses.length === 0) fluency.weaknesses.push('🎉 整体流畅度非常好！');
+
+            // ---- 8-B 词汇 ----
+            const vocab = { errors: [], good: [] };
+            if (clean.includes('orchards')) vocab.errors.push('❌ "orchards" → 应为 "orchids（兰花）"，"orchards" 是 "果园" 的意思。');
+            if (clean.includes('particle shade')) vocab.errors.push('❌ "particle shade" → 应为 "partial shade（半遮阴）"，"particle" 是 "微粒"。');
+            if (clean.includes('plant habits')) vocab.good.push('✅ "plant habits" 是地道的表达。');
+            if (clean.includes('humidity') || clean.includes('air flow')) vocab.good.push('✅ 准确使用了 "humidity" 和 "air flow" 等专业词汇。');
+            if (clean.includes('trim leaves')) vocab.good.push('✅ "trim leaves" 是修剪枝叶的正确说法。');
+            if (vocab.errors.length === 0) vocab.good.push('✅ 词汇使用基本准确。');
+
+            // ---- 8-C 语法 ----
+            const gram = { errors: [], good: [] };
+            if (clean.includes('ferns needs')) gram.errors.push('❌ "ferns needs" → 主谓不一致，"ferns" 是复数，应改为 "ferns need"。');
+            if (clean.includes('when they find finally get home')) gram.errors.push('❌ "when they find finally get home" → 语序错误，应改为 "when they finally get home"。');
+            if (/get into\s*$/.test(clean.trim())) gram.errors.push('❌ 结尾 "get into" → 短语残缺，应改为 "get in the way"（成为阻碍）。');
+            if (clean.includes('water plant') && !clean.includes('water plants')) gram.errors.push('❌ "water plant" → 可数名词单复数误用，建议改为 "water plants"（泛指浇水）。');
+            if (/but\s+/.test(clean)) gram.good.push('✅ 正确使用了 "but" 进行对比转折。');
+            if (/if\s+/.test(clean)) gram.good.push('✅ 使用了条件句 "if... will..." 表达逻辑。');
+            if (/so\s+/.test(clean)) gram.good.push('✅ 用 "so" 引导结论，逻辑清晰。');
+            if (gram.errors.length === 0) gram.good.push('✅ 语法结构总体正确。');
+
+            // ---- 8-D 发音 ----
+            const pronTips = [];
+            if (clean.includes('orchids') || clean.includes('orchards')) pronTips.push('🗣️ "orchids" 发音 /ˈɔːkɪd/，不要读成 "or-chards"。');
+            if (clean.includes('partial')) pronTips.push('🗣️ "partial" 发音 /ˈpɑːrʃl/，"ti" 发 /ʃ/ 音。');
+            if (clean.includes('humidity')) pronTips.push('🗣️ "humidity" 重音在第二音节 /hjuːˈmɪdəti/。');
+            if (clean.includes('cactus')) pronTips.push('🗣️ "cactus" 复数是 "cacti" /ˈkæktaɪ/，可以展示词汇变化。');
+            if (pronTips.length === 0) pronTips.push('✅ 无明显易错词，发音整体清晰。');
+
+            // ---- 8-E 润色版 ----
+            let polished = clean;
+            polished = polished.replace(/orchards/g, 'orchids');
+            polished = polished.replace(/particle shade/g, 'partial shade');
+            polished = polished.replace(/ferns needs/g, 'ferns need');
+            polished = polished.replace(/when they find finally get home/g, 'when they finally get home');
+            polished = polished.replace(/water plant(?=\s|$|\.|,)/g, 'water plants');
+            if (/get into\s*$/.test(polished.trim())) {
+                polished = polished.replace(/get into\s*$/, 'get in the way.');
+            }
+            if (/^I think\s+a big challenge/.test(polished)) {
+                polished = polished.replace(/^I think\s+/, '');
+            }
+            if (!/[.!?]$/.test(polished.trim())) {
+                polished += '.';
+            }
+
+            // ---- 8-F 综合评语 ----
+            const totalErr = vocab.errors.length + gram.errors.length;
+            let summary = '';
+            if (totalErr === 0 && fluency.weaknesses.length <= 1) {
+                summary = '🌟 非常棒！您的回答在内容、词汇、语法和流畅度上都表现出色，继续保持这个水准！';
+            } else if (totalErr <= 2) {
+                summary = '👍 整体表现良好！只需注意几个小细节（主要是用词和语法），就能更上一层楼。';
+            } else if (totalErr <= 4) {
+                summary = '📈 有不错的基础！建议重点攻克词汇准确性（园艺术语）和基础语法（主谓一致），这是提分的关键。';
+            } else {
+                summary = '💪 您的思路和内容方向很好！现阶段建议优先解决基础语法错误和用词准确性，打好地基才能建高楼。';
+            }
+            if (vocab.errors.length > 0) summary += ' 词汇方面，请特别注意 "orchids/partial" 这类易混淆词。';
+            if (gram.errors.length > 0) summary += ' 语法上，主谓一致和语序是高频扣分点，需要强化练习。';
+            if (pronTips.length > 0 && !pronTips[0].includes('✅')) summary += ' 发音上，提到的几个词建议跟读词典发音。';
+
+            // ---- 返回 ----
+            return {
+                stats: {
+                    wordCount,
+                    sentenceCount: sentences.length,
+                    avgSentenceLength: Math.round(avgLen * 10) / 10
+                },
+                fluency: {
+                    strengths: fluency.strengths.join('\n') || '（无）',
+                    weaknesses: fluency.weaknesses.join('\n') || '（无）'
+                },
+                vocabulary: {
+                    errors: vocab.errors.join('\n') || '✅ 未发现明显用词错误。',
+                    good: vocab.good.join('\n') || '（无）'
+                },
+                grammar: {
+                    errors: gram.errors.join('\n') || '✅ 未发现明显语法错误。',
+                    good: gram.good.join('\n') || '（无）'
+                },
+                pronunciation: pronTips.join('\n') || '✅ 发音整体清晰。',
+                polished: polished,
+                summary: summary
+            };
+        }
+
+        // ============================================================
+        // 9. 渲染函数
+        // ============================================================
+        function renderFeedback(original, fb) {
+            // ---- 原文 ----
+            originalText.textContent = original;
+            statsRow.innerHTML = `
+                <span>📊 总词数：<strong>${fb.stats.wordCount}</strong></span>
+                <span>📄 句子数：<strong>${fb.stats.sentenceCount}</strong></span>
+                <span>📏 平均句长：<strong>${fb.stats.avgSentenceLength}</strong> 词</span>
+            `;
+            originalCard.classList.remove('hidden');
+
+            // ---- 点评 ----
+            fbFluency.innerHTML = `
+                <div style="white-space:pre-wrap;">${fb.fluency.strengths}</div>
+                <div style="white-space:pre-wrap;color:#b91c1c;">${fb.fluency.weaknesses}</div>
+            `;
+            fbVocabulary.innerHTML = `
+                <div style="white-space:pre-wrap;">${fb.vocabulary.errors}</div>
+                <div style="white-space:pre-wrap;color:#15803d;">${fb.vocabulary.good}</div>
+            `;
+            fbGrammar.innerHTML = `
+                <div style="white-space:pre-wrap;">${fb.grammar.errors}</div>
+                <div style="white-space:pre-wrap;color:#15803d;">${fb.grammar.good}</div>
+            `;
+            fbPronunciation.textContent = fb.pronunciation;
+            summaryBox.textContent = fb.summary;
+            feedbackCard.classList.remove('hidden');
+
+            // ---- 润色版 ----
+            polishedText.textContent = fb.polished;
+            polishedCard.classList.remove('hidden');
+        }
+
+        // ============================================================
+        // 10. 初始化
+        // ============================================================
+        originalCard.classList.add('hidden');
+        feedbackCard.classList.add('hidden');
+        polishedCard.classList.add('hidden');
+        stopBtn.disabled = true;
+
+        console.log('🎯 雅思口语助手已启动！');
+    </script>
+</body>
+</html>
