@@ -734,6 +734,10 @@
                 audioChunks: [],
                 currentRecordingId: null,
                 speechSynth: window.speechSynthesis,
+                // 保存考试实际使用的题目（用于回顾页）
+                savedP1Questions: [],
+                savedP2Topic: null,
+                savedP3Questions: [],
             };
 
             // ================================================================
@@ -818,14 +822,24 @@
                 examState.p1Questions = allP1Questions;
                 examState.p1Index = 0;
 
+                // 保存 Part1 题目（用于回顾页）
+                examState.savedP1Questions = allP1Questions.map(q => ({ ...q }));
+
                 // P2 抽题
                 const allP2 = [...p2New, ...p2Keep, ...nonMainlandP2];
                 examState.p2Topic = pickRandom(allP2, 1)[0];
 
+                // 保存 Part2 题目（用于回顾页）
+                examState.savedP2Topic = { ...examState.p2Topic };
+
                 // P3
                 const p3Pool = examState.p2Topic.p3 || [];
-                examState.p3Questions = pickRandom(p3Pool, 4).map(q => ({ question: q }));
+                const pickedP3 = pickRandom(p3Pool, 4).map(q => ({ question: q }));
+                examState.p3Questions = pickedP3;
                 examState.p3Index = 0;
+
+                // 保存 Part3 题目（用于回顾页）
+                examState.savedP3Questions = pickedP3.map(q => ({ ...q }));
 
                 // UI
                 examTimer.textContent = '⏳ 0:00';
@@ -1194,7 +1208,7 @@
             });
 
             // ================================================================
-            // 13. 结束 → 回顾
+            // 13. 结束 → 回顾 ★★★ 修复重点 ★★★
             // ================================================================
             function finishExam() {
                 examState.phase = 'done';
@@ -1218,28 +1232,40 @@
                 let html = '';
                 let qIdx = 0;
 
+                // ---- Part 1：直接使用保存的 examState.savedP1Questions ----
                 html += `<div class="review-section"><div class="section-title">📋 Part 1 考题</div>`;
-                examState.p1Topics.forEach(topic => {
-                    const qs = pickRandom(topic.questions, 3);
-                    qs.forEach(q => {
-                        const rec = examState.recordings.find(r => r.label === `P1-${topic.title}-Q${qIdx+1}`);
+                if (examState.savedP1Questions && examState.savedP1Questions.length > 0) {
+                    examState.savedP1Questions.forEach((q, idx) => {
+                        const rec = examState.recordings.find(r => r.label === `P1-${q.topic}-Q${idx+1}`);
                         html += `<div class="review-item">
-                    <span class="q-text"><strong>${topic.title}</strong>: ${q}</span>
-                    <div class="audio-controls">`;
+                            <span class="q-text"><strong>${q.topic}</strong>: ${q.question}</span>
+                            <div class="audio-controls">`;
                         if (rec) {
                             html += `<audio controls src="${rec.url}"></audio>`;
                             html += `<button class="btn-outline" onclick="window.downloadAudio('${rec.id}')">⬇️</button>`;
                         } else {
-                            html += `<span style="color:#999;font-size:0.8rem;">未录音</span>`;
+                            // 尝试模糊匹配
+                            let found = false;
+                            for (let r of examState.recordings) {
+                                if (r.label && r.label.includes(q.topic) && r.phase === 'p1') {
+                                    html += `<audio controls src="${r.url}"></audio>`;
+                                    html += `<button class="btn-outline" onclick="window.downloadAudio('${r.id}')">⬇️</button>`;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                html += `<span style="color:#999;font-size:0.8rem;">未录音</span>`;
+                            }
                         }
-                        html += `<button class="btn-outline" onclick="window.speakText('${q.replace(/'/g, "\\'")}')">🔊</button>`;
+                        html += `<button class="btn-outline" onclick="window.speakText('${q.question.replace(/'/g, "\\'")}')">🔊</button>`;
                         html += `</div></div>`;
-                        qIdx++;
                     });
-                });
+                }
                 html += `</div>`;
 
-                const topic = examState.p2Topic;
+                // ---- Part 2：直接使用保存的 examState.savedP2Topic ----
+                const topic = examState.savedP2Topic || examState.p2Topic;
                 const recP2 = examState.recordings.find(r => r.phase === 'p2');
                 html += `<div class="review-section"><div class="section-title">📌 Part 2 考题</div>`;
                 html += `<div class="review-item"><span class="q-text"><strong>${topic.title}</strong><br>${topic.instruction}<br>${topic.bullets.map(b => '• ' + b).join('<br>')}</span>`;
@@ -1253,21 +1279,35 @@
                 html += `<button class="btn-outline" onclick="window.speakText('${topic.instruction.replace(/'/g, "\\'")}')">🔊</button>`;
                 html += `</div></div></div>`;
 
+                // ---- Part 3：直接使用保存的 examState.savedP3Questions ----
                 html += `<div class="review-section"><div class="section-title">💬 Part 3 考题</div>`;
-                examState.p3Questions.forEach((q, idx) => {
-                    const rec = examState.recordings.find(r => r.label === `P3-Q${idx+1}`);
-                    html += `<div class="review-item">
-                <span class="q-text">${q.question}</span>
-                <div class="audio-controls">`;
-                    if (rec) {
-                        html += `<audio controls src="${rec.url}"></audio>`;
-                        html += `<button class="btn-outline" onclick="window.downloadAudio('${rec.id}')">⬇️</button>`;
-                    } else {
-                        html += `<span style="color:#999;font-size:0.8rem;">未录音</span>`;
-                    }
-                    html += `<button class="btn-outline" onclick="window.speakText('${q.question.replace(/'/g, "\\'")}')">🔊</button>`;
-                    html += `</div></div>`;
-                });
+                if (examState.savedP3Questions && examState.savedP3Questions.length > 0) {
+                    examState.savedP3Questions.forEach((q, idx) => {
+                        const rec = examState.recordings.find(r => r.label === `P3-Q${idx+1}`);
+                        html += `<div class="review-item">
+                            <span class="q-text">${q.question}</span>
+                            <div class="audio-controls">`;
+                        if (rec) {
+                            html += `<audio controls src="${rec.url}"></audio>`;
+                            html += `<button class="btn-outline" onclick="window.downloadAudio('${rec.id}')">⬇️</button>`;
+                        } else {
+                            let found = false;
+                            for (let r of examState.recordings) {
+                                if (r.phase === 'p3' && r.label && r.label.includes('P3')) {
+                                    html += `<audio controls src="${r.url}"></audio>`;
+                                    html += `<button class="btn-outline" onclick="window.downloadAudio('${r.id}')">⬇️</button>`;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                html += `<span style="color:#999;font-size:0.8rem;">未录音</span>`;
+                            }
+                        }
+                        html += `<button class="btn-outline" onclick="window.speakText('${q.question.replace(/'/g, "\\'")}')">🔊</button>`;
+                        html += `</div></div>`;
+                    });
+                }
                 html += `</div>`;
 
                 reviewContent.innerHTML = html;
